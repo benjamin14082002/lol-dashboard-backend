@@ -13,6 +13,17 @@ REGION_MAPPING = {
     "EUW": "euw1", "EUNE": "eun1", "BR": "br1"
 }
 
+# Mapeo de los códigos de cola (queueId) de Riot a nombres legibles
+QUEUE_MAPPING = {
+    420: "Ranked Solo",
+    440: "Ranked Flex",
+    400: "Normal Draft",
+    430: "Normal Blind",
+    450: "ARAM",
+    700: "Clash",
+    1900: "URF"
+}
+
 @api_view(['GET'])
 def get_summoner_profile(request, region, summoner_name):
     if "#" in summoner_name:
@@ -91,9 +102,18 @@ def get_summoner_profile(request, region, summoner_name):
         
         if detail_res.status_code == 200:
             match_data = detail_res.json()
-            participants = match_data.get('info', {}).get('participants', [])
+            info = match_data.get('info', {})
+            participants = info.get('participants', [])
             
-            all_participants = [{"summonerName": p.get("riotIdGameName") or p.get("summonerName") or "Unknown", "championName": p.get("championName"), "teamId": p.get("teamId"), "kills": p.get("kills", 0), "deaths": p.get("deaths", 0), "assists": p.get("assists", 0)} for p in participants]
+            # Obtener el tipo de partida mediante el queueId
+            queue_id = info.get('queueId', 0)
+            game_mode = QUEUE_MAPPING.get(queue_id, "Partida")
+            
+            all_participants = [{
+                "summonerName": p.get("riotIdGameName") or p.get("summonerName") or "Unknown", 
+                "championName": p.get("championName"), "teamId": p.get("teamId"), 
+                "kills": p.get("kills", 0), "deaths": p.get("deaths", 0), "assists": p.get("assists", 0)
+            } for p in participants]
             
             player = next((p for p in participants if p.get('puuid') == puuid), None)
             
@@ -104,7 +124,7 @@ def get_summoner_profile(request, region, summoner_name):
                 if player.get('win'): wins += 1
                 
                 cs = player.get('totalMinionsKilled', 0) + player.get('neutralMinionsKilled', 0)
-                dur_seg = match_data.get('info', {}).get('gameDuration', 0)
+                dur_seg = info.get('gameDuration', 0)
                 dur_min = dur_seg / 60 if dur_seg > 0 else 1
                 
                 t_cs += cs
@@ -116,14 +136,17 @@ def get_summoner_profile(request, region, summoner_name):
                 try:
                     styles = player.get('perks', {}).get('styles', [])
                     if len(styles) > 0:
-                        runes[0] = styles[0]['selections'][0]['perk'] # Runa principal (ej. Electrocutar)
+                        runes[0] = styles[0]['selections'][0]['perk']
                     if len(styles) > 1:
-                        runes[1] = styles[1]['style'] # Rama secundaria (ej. Dominación)
+                        runes[1] = styles[1]['style']
                 except Exception:
                     pass
 
                 real_matches.append({
-                    "id": m_id, "win": player.get('win', False), 
+                    "id": m_id, 
+                    "win": player.get('win', False), 
+                    "gameMode": game_mode, # <- Nuevo campo con el tipo de partida
+                    "queueId": queue_id,   # <- ID de la cola para lógica avanzada o estilos
                     "championName": player.get('championName', 'Unknown'), 
                     "kills": player.get('kills', 0), "deaths": player.get('deaths', 0), "assists": player.get('assists', 0),
                     "duration": f"{int(dur_min)}:{int(dur_seg % 60):02d}", "date": "Reciente",
@@ -149,7 +172,7 @@ def get_summoner_profile(request, region, summoner_name):
 
     return Response({
         "summoner": real_name, "region": region, "profileIcon": profile_icon, "summonerLevel": summoner_level,
-        "status": "success", "message": "🚀 ¡Datos 5v5 con Runas guardados!",
+        "status": "success", "message": "🚀 ¡Datos actualizados con tipo de partida!",
         "rankedSolo": ranked_solo, "rankedFlex": ranked_flex,
         "stats": {"winrate": winrate, "kda": kda_ratio, "csPerMin": cs_per_min}, "matches": real_matches
     })
@@ -164,7 +187,7 @@ from .models import UserProfile
 def register_user(request):
     username = request.data.get('username')
     password = request.data.get('password')
-    riot_id = request.data.get('riot_id') # Ej: Benjamin#LAS
+    riot_id = request.data.get('riot_id')
     region = request.data.get('region', 'LAS')
 
     if not username or not password or not riot_id:
@@ -173,7 +196,6 @@ def register_user(request):
     if User.objects.filter(username=username).exists():
         return Response({"status": "error", "message": "El nombre de usuario ya está en uso."}, status=400)
 
-    # VALIDACIÓN REAL CONTRA RIOT GAMES
     if "#" in riot_id:
         game_name, tag_line = riot_id.split("#", 1)
     else:
@@ -185,13 +207,12 @@ def register_user(request):
     acc_res = requests.get(account_url, headers=headers)
 
     if acc_res.status_code != 200:
-        return Response({"status": "error", "message": "❌ El Riot ID ingresado no existe en los servidores de Riot Games. Verifica tu nombre y tag."}, status=400)
+        return Response({"status": "error", "message": "❌ El Riot ID ingresado no existe en los servidores de Riot Games."}, status=400)
 
     account_data = acc_res.json()
     puuid = account_data.get('puuid')
     real_riot_id = f"{account_data.get('gameName')}#{account_data.get('tagLine')}"
 
-    # Si Riot confirmó que existe, creamos el usuario en Django
     user = User.objects.create_user(username=username, password=password)
     UserProfile.objects.create(user=user, riot_id=real_riot_id, region=region, puuid=puuid)
 
