@@ -18,7 +18,6 @@ def search_valorant_profile(request, region, game_name, tag_line):
     if account_resp.status_code != 200:
         return Response({'error': f'Error al buscar jugador. Código API: {account_resp.status_code}'}, status=404)
 
-    # Usamos "or {}" para evitar crasheos si la API devuelve null en 'data'
     account_data = account_resp.json().get('data') or {}
     puuid = account_data.get('puuid')
     account_level = account_data.get('account_level', 0)
@@ -47,7 +46,6 @@ def search_valorant_profile(request, region, game_name, tag_line):
     
     for match in matches_data:
         try:
-            # Envolvemos cada partida en un try-except. Si falla una, no crashea todo el sistema.
             match_info = match.get('metadata') or {}
             match_id = match_info.get('matchid')
             map_name = match_info.get('map', 'Desconocido')
@@ -82,10 +80,13 @@ def search_valorant_profile(request, region, game_name, tag_line):
             teams = match.get('teams') or {}
             
             won = False
-            # Verificación ultra segura para evitar errores AttributeError con strings nulos
             if team_id and isinstance(team_id, str) and isinstance(teams, dict):
                 team_data = teams.get(team_id.lower()) or {}
                 won = team_data.get('won', False)
+
+            # --- NUEVO FILTRO: Omitir partidas "Fantasma" o Canceladas ---
+            if agent_name == 'Desconocido' or map_name == 'Desconocido':
+                continue
 
             formatted_matches.append({
                 'matchId': match_id,
@@ -100,7 +101,6 @@ def search_valorant_profile(request, region, game_name, tag_line):
                 'gameStart': game_start
             })
         except Exception as e:
-            # Si una partida da error (ej. Deathmatch vacío), la ignoramos y pasamos a la siguiente
             print(f"Partida {match.get('metadata', {}).get('matchid')} ignorada por error de formato: {e}")
             continue
 
