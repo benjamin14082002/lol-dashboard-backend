@@ -35,7 +35,7 @@ def search_valorant_profile(request, region, game_name, tag_line):
         rank_name = mmr_data.get('currenttierpatched', 'Unranked')
         rank_image = mmr_data.get('images', {}).get('small', '')
 
-    # 3. Buscamos las últimas 10 partidas (Cambiado de 5 a 10)
+    # 3. Buscamos las últimas 10 partidas
     matches_url = f"https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/{region}/{puuid}?size=10"
     matches_resp = requests.get(matches_url, headers=HEADERS)
 
@@ -51,7 +51,6 @@ def search_valorant_profile(request, region, game_name, tag_line):
             players = match.get('players', {}).get('all_players', [])
             game_start = match_info.get('game_start', 0)
             
-            # --- NUEVO: Extraemos todos los jugadores de la partida ---
             all_players_data = []
             for p in players:
                 all_players_data.append({
@@ -72,10 +71,14 @@ def search_valorant_profile(request, region, game_name, tag_line):
             assists = stats.get('assists', 0)
             agent_name = player_stats.get('character', 'Desconocido')
 
+            # --- CORRECCIÓN: Prevención de error para Deathmatch (Sin equipo) ---
             team_id = player_stats.get('team')
             teams = match.get('teams', {})
-            team_data = teams.get(team_id.lower(), {}) if isinstance(teams, dict) else {}
-            won = team_data.get('won', False)
+            
+            won = False
+            if team_id and isinstance(teams, dict):
+                team_data = teams.get(team_id.lower(), {})
+                won = team_data.get('won', False)
 
             formatted_matches.append({
                 'matchId': match_id,
@@ -87,7 +90,7 @@ def search_valorant_profile(request, region, game_name, tag_line):
                 'assists': assists,
                 'won': won,
                 'allPlayers': all_players_data,
-                'gameStart': game_start # <--- AQUÍ ESTÁ EL ARREGLO DEL RELOJ
+                'gameStart': game_start
             })
 
     return Response({
