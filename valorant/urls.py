@@ -1,7 +1,7 @@
 from django.urls import path
-from .views import save_valorant_profile, get_valorant_stats
+from .views import search_valorant_profile
 
 urlpatterns = [
-    path('profile/', save_valorant_profile, name='save_valorant_profile'),
-    path('stats/', get_valorant_stats, name='get_valorant_stats'),
+    # Nueva ruta pública para buscar cuentas (reemplaza a profile/ y stats/)
+    path('search/<str:region>/<str:game_name>/<str:tag_line>/', search_valorant_profile, name='search_valorant_profile'),
 ]
