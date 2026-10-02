@@ -35,8 +35,8 @@ def search_valorant_profile(request, region, game_name, tag_line):
         rank_name = mmr_data.get('currenttierpatched', 'Unranked')
         rank_image = mmr_data.get('images', {}).get('small', '')
 
-    # 3. Buscamos las últimas 5 partidas
-    matches_url = f"https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/{region}/{puuid}?size=5"
+    # 3. Buscamos las últimas 10 partidas (Cambiado de 5 a 10)
+    matches_url = f"https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/{region}/{puuid}?size=10"
     matches_resp = requests.get(matches_url, headers=HEADERS)
 
     formatted_matches = []
@@ -86,7 +86,8 @@ def search_valorant_profile(request, region, game_name, tag_line):
                 'deaths': deaths,
                 'assists': assists,
                 'won': won,
-                'allPlayers': all_players_data # Agregamos la lista completa
+                'allPlayers': all_players_data,
+                'gameStart': game_start # <--- AQUÍ ESTÁ EL ARREGLO DEL RELOJ
             })
 
     return Response({
