@@ -137,8 +137,10 @@ MAILERS = {
 
 # CORS Configuration (Permite que React se comunique con Django)
 # Cuando tengas tu URL definitiva de Vercel, agrégala aquí (ej: "https://tu-app.vercel.app")
+# CORS Configuration (Permite que React se comunique con Django)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "https://lol-dashboard-frontend.vercel.app",
 ]
 
 # Alternativa si prefieres permitir conexiones desde cualquier origen en producción temporalmente:
