@@ -44,10 +44,19 @@ def get_summoner_profile(request, region, summoner_name):
     puuid = account_data.get('puuid')
     real_name = f"{account_data.get('gameName')}#{account_data.get('tagLine')}"
 
-    # --- NUEVO: Extraemos el verdadero campeón principal por Maestría ---
+    # Extraemos el verdadero campeón principal y su maestría
     mastery_url = f"https://{plat_region}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/top?count=1"
     mastery_res = requests.get(mastery_url, headers=headers)
-    true_main_id = mastery_res.json()[0].get('championId', 0) if mastery_res.status_code == 200 and mastery_res.json() else 0
+    
+    true_main_id = 0
+    champion_level = 0
+    champion_points = 0
+    
+    if mastery_res.status_code == 200 and mastery_res.json():
+        top_champ = mastery_res.json()[0]
+        true_main_id = top_champ.get('championId', 0)
+        champion_level = top_champ.get('championLevel', 0)
+        champion_points = top_champ.get('championPoints', 0)
 
     try:
         profile = SummonerProfile.objects.get(puuid=puuid)
@@ -68,7 +77,9 @@ def get_summoner_profile(request, region, summoner_name):
                 "rankedSolo": profile.ranked_solo, "rankedFlex": profile.ranked_flex,
                 "stats": {"winrate": profile.winrate, "kda": profile.kda, "csPerMin": profile.cs_per_min},
                 "matches": real_matches,
-                "trueMainId": true_main_id
+                "trueMainId": true_main_id,
+                "championLevel": champion_level,
+                "championPoints": champion_points
             })
     except SummonerProfile.DoesNotExist:
         pass
@@ -113,7 +124,6 @@ def get_summoner_profile(request, region, summoner_name):
             queue_id = info.get('queueId', 0)
             game_mode = QUEUE_MAPPING.get(queue_id, "Partida")
             
-            # --- NUEVO: Extraemos largestMultiKill ---
             all_participants = [{
                 "summonerName": p.get("riotIdGameName") or p.get("summonerName") or "Unknown", 
                 "championName": p.get("championName"), "teamId": p.get("teamId"), 
@@ -177,11 +187,13 @@ def get_summoner_profile(request, region, summoner_name):
 
     return Response({
         "summoner": real_name, "region": region, "profileIcon": profile_icon, "summonerLevel": summoner_level,
-        "status": "success", "message": "🚀 ¡Datos actualizados con maestría y multikills!",
+        "status": "success", "message": "🚀 ¡Datos actualizados!",
         "rankedSolo": ranked_solo, "rankedFlex": ranked_flex,
         "stats": {"winrate": winrate, "kda": kda_ratio, "csPerMin": cs_per_min}, 
         "matches": real_matches,
-        "trueMainId": true_main_id
+        "trueMainId": true_main_id,
+        "championLevel": champion_level,
+        "championPoints": champion_points
     })
 
 from django.contrib.auth.models import User
@@ -214,7 +226,7 @@ def register_user(request):
     acc_res = requests.get(account_url, headers=headers)
 
     if acc_res.status_code != 200:
-        return Response({"status": "error", "message": "❌ El Riot ID ingresado no existe en los servidores de Riot Games."}, status=400)
+        return Response({"status": "error", "message": "❌ El Riot ID ingresado no existe."}, status=400)
 
     account_data = acc_res.json()
     puuid = account_data.get('puuid')
@@ -225,7 +237,7 @@ def register_user(request):
 
     return Response({
         "status": "success", 
-        "message": "¡Cuenta creada y validada con éxito con tu perfil de LoL!",
+        "message": "¡Cuenta creada con éxito!",
         "riot_id": real_riot_id
     })
 
@@ -245,6 +257,6 @@ def login_user(request):
                 "region": profile.region
             })
         except UserProfile.DoesNotExist:
-            return Response({"status": "error", "message": "El usuario no tiene un perfil de LoL asociado."}, status=400)
+            return Response({"status": "error", "message": "El usuario no tiene un perfil asociado."}, status=400)
     
     return Response({"status": "error", "message": "Usuario o contraseña incorrectos."}, status=400)
