@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 # Pega aquí tu API Key de HenrikDev (la que empieza con HDEV-...)
-HENRIK_API_KEY = "HDEV-3ee1161a-c93b-4e5d-b0d5-7b0767efa1f0" 
+HENRIK_API_KEY = "PEGA_TU_API_KEY_COMPLETA_AQUI" 
 HEADERS = {
     "Authorization": HENRIK_API_KEY
 }
@@ -12,7 +12,7 @@ HEADERS = {
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def search_valorant_profile(request, region, game_name, tag_line):
-    # 1. Buscamos la cuenta (Aquí obtenemos PUUID, Nivel y Foto)
+    # 1. Buscamos la cuenta
     account_url = f"https://api.henrikdev.xyz/valorant/v1/account/{game_name}/{tag_line}"
     account_resp = requests.get(account_url, headers=HEADERS)
 
@@ -22,8 +22,6 @@ def search_valorant_profile(request, region, game_name, tag_line):
     account_data = account_resp.json().get('data', {})
     puuid = account_data.get('puuid')
     account_level = account_data.get('account_level', 0)
-    
-    # Obtenemos la imagen de perfil (player card)
     player_card = account_data.get('card', {}).get('small', '')
 
     # 2. Buscamos el Rango Competitivo (MMR)
@@ -32,13 +30,12 @@ def search_valorant_profile(request, region, game_name, tag_line):
     
     rank_name = "Unranked"
     rank_image = ""
-    
     if mmr_resp.status_code == 200:
         mmr_data = mmr_resp.json().get('data', {})
         rank_name = mmr_data.get('currenttierpatched', 'Unranked')
         rank_image = mmr_data.get('images', {}).get('small', '')
 
-    # 3. Buscamos las últimas 5 partidas usando el PUUID
+    # 3. Buscamos las últimas 5 partidas
     matches_url = f"https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/{region}/{puuid}?size=5"
     matches_resp = requests.get(matches_url, headers=HEADERS)
 
@@ -52,8 +49,22 @@ def search_valorant_profile(request, region, game_name, tag_line):
             game_mode = match_info.get('mode', 'Competitivo')
 
             players = match.get('players', {}).get('all_players', [])
-            player_stats = next((p for p in players if p.get('puuid') == puuid), {})
+            
+            # --- NUEVO: Extraemos todos los jugadores de la partida ---
+            all_players_data = []
+            for p in players:
+                all_players_data.append({
+                    'puuid': p.get('puuid'),
+                    'name': p.get('name', 'Desconocido'),
+                    'tag': p.get('tag', ''),
+                    'team': p.get('team', 'Unknown'), # 'Blue' o 'Red'
+                    'agent': p.get('character', 'Desconocido'),
+                    'kills': p.get('stats', {}).get('kills', 0),
+                    'deaths': p.get('stats', {}).get('deaths', 0),
+                    'assists': p.get('stats', {}).get('assists', 0)
+                })
 
+            player_stats = next((p for p in players if p.get('puuid') == puuid), {})
             stats = player_stats.get('stats', {})
             kills = stats.get('kills', 0)
             deaths = stats.get('deaths', 0)
@@ -73,10 +84,10 @@ def search_valorant_profile(request, region, game_name, tag_line):
                 'kills': kills,
                 'deaths': deaths,
                 'assists': assists,
-                'won': won
+                'won': won,
+                'allPlayers': all_players_data # Agregamos la lista completa
             })
 
-    # 4. Devolvemos todos los datos empaquetados al frontend
     return Response({
         'profile': {
             'gameName': account_data.get('name'),
