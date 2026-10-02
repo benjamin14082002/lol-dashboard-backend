@@ -45,6 +45,7 @@ INSTALLED_APPS = [
 
     # Tu aplicacion
     'api',
+    'valorant',
 ]
 
 MIDDLEWARE = [
