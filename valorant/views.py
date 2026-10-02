@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 # Pega aquí tu API Key de HenrikDev (la que empieza con HDEV-...)
-HENRIK_API_KEY = "PEGA_TU_API_KEY_COMPLETA_AQUI" 
+HENRIK_API_KEY = "HDEV-3ee1161a-c93b-4e5d-b0d5-7b0767efa1f0" 
 HEADERS = {
     "Authorization": HENRIK_API_KEY
 }
