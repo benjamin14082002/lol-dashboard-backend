@@ -13,7 +13,6 @@ REGION_MAPPING = {
     "EUW": "euw1", "EUNE": "eun1", "BR": "br1"
 }
 
-# Mapeo de los códigos de cola (queueId) de Riot a nombres legibles
 QUEUE_MAPPING = {
     420: "Ranked Solo",
     440: "Ranked Flex",
@@ -45,6 +44,11 @@ def get_summoner_profile(request, region, summoner_name):
     puuid = account_data.get('puuid')
     real_name = f"{account_data.get('gameName')}#{account_data.get('tagLine')}"
 
+    # --- NUEVO: Extraemos el verdadero campeón principal por Maestría ---
+    mastery_url = f"https://{plat_region}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/{puuid}/top?count=1"
+    mastery_res = requests.get(mastery_url, headers=headers)
+    true_main_id = mastery_res.json()[0].get('championId', 0) if mastery_res.status_code == 200 and mastery_res.json() else 0
+
     try:
         profile = SummonerProfile.objects.get(puuid=puuid)
         if timezone.now() - profile.last_updated < timedelta(minutes=15):
@@ -63,7 +67,8 @@ def get_summoner_profile(request, region, summoner_name):
                 "status": "success", "message": "⚡ ¡Datos cargados desde la Base de Datos!",
                 "rankedSolo": profile.ranked_solo, "rankedFlex": profile.ranked_flex,
                 "stats": {"winrate": profile.winrate, "kda": profile.kda, "csPerMin": profile.cs_per_min},
-                "matches": real_matches
+                "matches": real_matches,
+                "trueMainId": true_main_id
             })
     except SummonerProfile.DoesNotExist:
         pass
@@ -105,14 +110,15 @@ def get_summoner_profile(request, region, summoner_name):
             info = match_data.get('info', {})
             participants = info.get('participants', [])
             
-            # Obtener el tipo de partida mediante el queueId
             queue_id = info.get('queueId', 0)
             game_mode = QUEUE_MAPPING.get(queue_id, "Partida")
             
+            # --- NUEVO: Extraemos largestMultiKill ---
             all_participants = [{
                 "summonerName": p.get("riotIdGameName") or p.get("summonerName") or "Unknown", 
                 "championName": p.get("championName"), "teamId": p.get("teamId"), 
-                "kills": p.get("kills", 0), "deaths": p.get("deaths", 0), "assists": p.get("assists", 0)
+                "kills": p.get("kills", 0), "deaths": p.get("deaths", 0), "assists": p.get("assists", 0),
+                "multikill": p.get("largestMultiKill", 0)
             } for p in participants]
             
             player = next((p for p in participants if p.get('puuid') == puuid), None)
@@ -130,7 +136,6 @@ def get_summoner_profile(request, region, summoner_name):
                 t_cs += cs
                 t_mins += dur_min
 
-                # EXTRAER HECHIZOS Y RUNAS
                 spells = [player.get('summoner1Id', 0), player.get('summoner2Id', 0)]
                 runes = [0, 0]
                 try:
@@ -145,8 +150,8 @@ def get_summoner_profile(request, region, summoner_name):
                 real_matches.append({
                     "id": m_id, 
                     "win": player.get('win', False), 
-                    "gameMode": game_mode, # <- Nuevo campo con el tipo de partida
-                    "queueId": queue_id,   # <- ID de la cola para lógica avanzada o estilos
+                    "gameMode": game_mode, 
+                    "queueId": queue_id,   
                     "championName": player.get('championName', 'Unknown'), 
                     "kills": player.get('kills', 0), "deaths": player.get('deaths', 0), "assists": player.get('assists', 0),
                     "duration": f"{int(dur_min)}:{int(dur_seg % 60):02d}", "date": "Reciente",
@@ -172,9 +177,11 @@ def get_summoner_profile(request, region, summoner_name):
 
     return Response({
         "summoner": real_name, "region": region, "profileIcon": profile_icon, "summonerLevel": summoner_level,
-        "status": "success", "message": "🚀 ¡Datos actualizados con tipo de partida!",
+        "status": "success", "message": "🚀 ¡Datos actualizados con maestría y multikills!",
         "rankedSolo": ranked_solo, "rankedFlex": ranked_flex,
-        "stats": {"winrate": winrate, "kda": kda_ratio, "csPerMin": cs_per_min}, "matches": real_matches
+        "stats": {"winrate": winrate, "kda": kda_ratio, "csPerMin": cs_per_min}, 
+        "matches": real_matches,
+        "trueMainId": true_main_id
     })
 
 from django.contrib.auth.models import User
