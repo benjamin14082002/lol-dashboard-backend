@@ -10,9 +10,9 @@ HEADERS = {
 }
 
 @api_view(['GET'])
-@permission_classes([AllowAny])  # Esto permite que cualquiera pueda buscar sin iniciar sesión
+@permission_classes([AllowAny])
 def search_valorant_profile(request, region, game_name, tag_line):
-    # 1. Buscamos la cuenta para obtener el PUUID
+    # 1. Buscamos la cuenta (Aquí obtenemos PUUID, Nivel y Foto)
     account_url = f"https://api.henrikdev.xyz/valorant/v1/account/{game_name}/{tag_line}"
     account_resp = requests.get(account_url, headers=HEADERS)
 
@@ -21,8 +21,24 @@ def search_valorant_profile(request, region, game_name, tag_line):
 
     account_data = account_resp.json().get('data', {})
     puuid = account_data.get('puuid')
+    account_level = account_data.get('account_level', 0)
     
-    # 2. Buscamos las últimas 5 partidas usando el PUUID y la región
+    # Obtenemos la imagen de perfil (player card)
+    player_card = account_data.get('card', {}).get('small', '')
+
+    # 2. Buscamos el Rango Competitivo (MMR)
+    mmr_url = f"https://api.henrikdev.xyz/valorant/v1/mmr/{region}/{game_name}/{tag_line}"
+    mmr_resp = requests.get(mmr_url, headers=HEADERS)
+    
+    rank_name = "Unranked"
+    rank_image = ""
+    
+    if mmr_resp.status_code == 200:
+        mmr_data = mmr_resp.json().get('data', {})
+        rank_name = mmr_data.get('currenttierpatched', 'Unranked')
+        rank_image = mmr_data.get('images', {}).get('small', '')
+
+    # 3. Buscamos las últimas 5 partidas usando el PUUID
     matches_url = f"https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/{region}/{puuid}?size=5"
     matches_resp = requests.get(matches_url, headers=HEADERS)
 
@@ -60,12 +76,16 @@ def search_valorant_profile(request, region, game_name, tag_line):
                 'won': won
             })
 
-    # 3. Devolvemos todo junto al frontend
+    # 4. Devolvemos todos los datos empaquetados al frontend
     return Response({
         'profile': {
             'gameName': account_data.get('name'),
             'tagLine': account_data.get('tag'),
-            'region': region.upper()
+            'region': region.upper(),
+            'level': account_level,
+            'cardImage': player_card,
+            'rankName': rank_name,
+            'rankImage': rank_image
         },
         'matches': formatted_matches
     })
