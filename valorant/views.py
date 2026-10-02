@@ -23,16 +23,20 @@ def search_valorant_profile(request, region, game_name, tag_line):
     account_level = account_data.get('account_level', 0)
     player_card = (account_data.get('card') or {}).get('small', '')
 
-    # 2. Buscamos el Rango Competitivo
+    # 2. Buscamos el Rango Competitivo y los Puntos RR
     mmr_url = f"https://api.henrikdev.xyz/valorant/v1/mmr/{region}/{game_name}/{tag_line}"
     mmr_resp = requests.get(mmr_url, headers=HEADERS)
     
     rank_name = "Unranked"
     rank_image = ""
+    ranking_in_tier = 0
+    
     if mmr_resp.status_code == 200:
         mmr_data = mmr_resp.json().get('data') or {}
         rank_name = mmr_data.get('currenttierpatched', 'Unranked')
         rank_image = (mmr_data.get('images') or {}).get('small', '')
+        # --- NUEVO: Extraemos los puntos de rango (RR) ---
+        ranking_in_tier = mmr_data.get('ranking_in_tier', 0)
 
     # 3. Buscamos las últimas 10 partidas
     matches_url = f"https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/{region}/{puuid}?size=10"
@@ -84,7 +88,6 @@ def search_valorant_profile(request, region, game_name, tag_line):
                 team_data = teams.get(team_id.lower()) or {}
                 won = team_data.get('won', False)
 
-            # --- NUEVO FILTRO: Omitir partidas "Fantasma" o Canceladas ---
             if agent_name == 'Desconocido' or map_name == 'Desconocido':
                 continue
 
@@ -112,7 +115,8 @@ def search_valorant_profile(request, region, game_name, tag_line):
             'level': account_level,
             'cardImage': player_card,
             'rankName': rank_name,
-            'rankImage': rank_image
+            'rankImage': rank_image,
+            'rr': ranking_in_tier # Lo enviamos al frontend
         },
         'matches': formatted_matches
     })
