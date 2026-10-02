@@ -49,6 +49,7 @@ def search_valorant_profile(request, region, game_name, tag_line):
             game_mode = match_info.get('mode', 'Competitivo')
 
             players = match.get('players', {}).get('all_players', [])
+            game_start = match_info.get('game_start', 0)
             
             # --- NUEVO: Extraemos todos los jugadores de la partida ---
             all_players_data = []
