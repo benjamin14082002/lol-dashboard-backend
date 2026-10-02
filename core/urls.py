@@ -19,6 +19,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('api.urls')),  # Incluimos las rutas de la app 'api'   
-    path('valorant/', include('valorant.urls')),  # Incluimos las rutas de la app 'valorant'
+    path('api/', include('api.urls')), # Incluimos las rutas de la app 'api'
+    path('api/valorant/', include('valorant.urls')), # ¡AQUÍ AGREGAMOS 'api/'!
 ]
