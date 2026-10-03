@@ -35,7 +35,6 @@ def search_valorant_profile(request, region, game_name, tag_line):
         mmr_data = mmr_resp.json().get('data') or {}
         rank_name = mmr_data.get('currenttierpatched', 'Unranked')
         rank_image = (mmr_data.get('images') or {}).get('small', '')
-        # --- NUEVO: Extraemos los puntos de rango (RR) ---
         ranking_in_tier = mmr_data.get('ranking_in_tier', 0)
 
     # 3. Buscamos las últimas 10 partidas
@@ -80,13 +79,28 @@ def search_valorant_profile(request, region, game_name, tag_line):
             assists = stats.get('assists', 0)
             agent_name = player_stats.get('character', 'Desconocido')
 
+            # --- LÓGICA MEJORADA DE VICTORIA / DERROTA / SURRENDER ---
             team_id = player_stats.get('team')
             teams = match.get('teams') or {}
             
             won = False
             if team_id and isinstance(team_id, str) and isinstance(teams, dict):
-                team_data = teams.get(team_id.lower()) or {}
-                won = team_data.get('won', False)
+                our_team_key = team_id.lower()
+                enemy_team_key = 'blue' if our_team_key == 'red' else 'red'
+                
+                our_team_data = teams.get(our_team_key) or {}
+                enemy_team_data = teams.get(enemy_team_key) or {}
+                
+                our_rounds = our_team_data.get('rounds_won', 0)
+                enemy_rounds = enemy_team_data.get('rounds_won', 0)
+                
+                # Verificamos si la API marca 'won' o si ganamos por diferencia de rondas (surrender)
+                if our_team_data.get('won', False):
+                    won = True
+                elif our_rounds > enemy_rounds:
+                    won = True
+                else:
+                    won = False
 
             if agent_name == 'Desconocido' or map_name == 'Desconocido':
                 continue
@@ -116,7 +130,7 @@ def search_valorant_profile(request, region, game_name, tag_line):
             'cardImage': player_card,
             'rankName': rank_name,
             'rankImage': rank_image,
-            'rr': ranking_in_tier # Lo enviamos al frontend
+            'rr': ranking_in_tier 
         },
         'matches': formatted_matches
     })
