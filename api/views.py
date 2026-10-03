@@ -6,7 +6,7 @@ from django.utils import timezone
 from datetime import timedelta
 from .models import SummonerProfile, Match
 
-RIOT_API_KEY = "RGAPI-9b9381bb-76cf-4822-b4c8-a63ed591aeb2"
+RIOT_API_KEY = "RGAPI-969bcd22-886a-4ccb-8dac-2a28d9b21eab"
 
 REGION_MAPPING = {
     "LAS": "la2", "LAN": "la1", "NA": "na1", 
